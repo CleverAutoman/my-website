@@ -255,7 +255,7 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 36px;
-  scroll-margin-top: 10vh;
+  scroll-margin-top: 0;
 }
 
 .hidden-section {
