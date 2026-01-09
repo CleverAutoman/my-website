@@ -177,6 +177,7 @@ body::after {
   min-height: 90vh;
   display: flex;
   align-items: center;
+  padding: 8vh 0 6vh;
 }
 
 .copy h1 {
@@ -255,7 +256,7 @@ body::after {
   display: flex;
   flex-direction: column;
   gap: 36px;
-  scroll-margin-top: 0;
+  scroll-margin-top: 5vh;
 }
 
 .hidden-section {
@@ -321,13 +322,13 @@ body::after {
 
 .showcase {
   display: grid;
-  grid-template-columns: 1.25fr 0.75fr;
+  grid-template-columns: 0.4fr 0.6fr;
   align-items: start;
   gap: 48px;
 }
 
 .showcase.alt {
-  grid-template-columns: 0.75fr 1.25fr;
+  grid-template-columns: 0.6fr 0.4fr;
 }
 
 .mock {
@@ -472,7 +473,7 @@ body::after {
   flex-direction: column;
   gap: 12px;
   padding: 12px 0;
-  max-width: 460px;
+  max-width: none;
 }
 
 .eyebrow {
