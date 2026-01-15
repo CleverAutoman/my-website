@@ -167,6 +167,15 @@ function onScroll() {
 }
 
 initSections();
+// If the page loads at a hash (or after any programmatic jump), ensure the
+// correct section is revealed even if no scroll event fires.
+window.requestAnimationFrame(detectActiveSection);
+window.addEventListener("hashchange", () => {
+  window.requestAnimationFrame(detectActiveSection);
+});
+window.addEventListener("load", () => {
+  window.requestAnimationFrame(detectActiveSection);
+});
 window.addEventListener("scroll", onScroll, { passive: true });
 window.addEventListener("resize", onScroll);
 

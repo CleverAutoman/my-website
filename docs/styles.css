@@ -277,6 +277,10 @@ body::after {
   scroll-margin-top: 5vh;
 }
 
+#blog {
+  padding-bottom: 40px;
+}
+
 .hidden-section {
   opacity: 0;
   transform: translateY(32px);
