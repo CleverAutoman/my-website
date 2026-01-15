@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operating System Project - Chenguang Liu</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="floating-nav" aria-label="Quick jump">
+    <button class="floating-btn" onclick="window.location.href='./index.html#about'" title="About" data-label="About Me">
+      <svg class="floating-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    </button>
+    <button class="floating-btn" onclick="window.location.href='./index.html#work'" title="Work" data-label="Experiences">
+      <svg class="floating-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+        <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
+      </svg>
+    </button>
+    <button class="floating-btn" onclick="window.location.href='./index.html#projects'" title="Projects" data-label="Projects">
+      <svg class="floating-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+        <line x1="12" y1="11" x2="12" y2="17"/>
+        <line x1="9" y1="14" x2="15" y2="14"/>
+      </svg>
+    </button>
+    <button class="floating-btn active" onclick="window.location.href='./index.html#blog'" title="Blog" data-label="Blogs">
+      <svg class="floating-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+    </button>
+  </div>
+
+  <div class="page">
+    <header class="topbar">
+      <div class="identity">
+        <a href="./index.html" style="text-decoration: none; color: inherit;">
+          <span class="name">Chenguang Liu</span>
+        </a>
+      </div>
+    </header>
+
+    <main>
+      <article class="blog-post">
+        <header class="blog-post-header">
+          <a href="./index.html#blog" class="blog-back-link" aria-label="Back to blog list">← Back to Blog</a>
+          <p class="eyebrow">Blog Post</p>
+          <h1 class="blog-post-title">Operating System Project</h1>
+          <p class="blog-post-meta muted">Extending a basic OS skeleton with user programs, thread scheduling, synchronization, and a file system redesign.</p>
+        </header>
+
+        <div class="blog-post-content">
+          <h2>Overview</h2>
+          <p class="muted">
+            This project extends a basic OS skeleton with three major subsystems:
+            <strong>user programs (processes & syscalls)</strong>, <strong>thread scheduling and synchronization</strong>,
+            and a <strong>file system redesign</strong> featuring an FFS-style layout and a
+            Clock/Second-Chance buffer cache.
+          </p>
+          <p class="muted">
+            The primary focus is <strong>correctness under concurrency</strong>, <strong>robust resource cleanup</strong>,
+            and <strong>measurable performance improvements</strong>, validated through stress tests and
+            microbenchmarks.
+          </p>
+
+          <hr class="blog-divider">
+
+          <h2>Features</h2>
+
+          <h3>1. User Programs (Processes & Syscalls)</h3>
+
+          <h4>Argument Passing</h4>
+          <ul class="blog-list muted">
+            <li>Implemented user stack setup with System V–style <code>argc/argv</code> layout.</li>
+            <li>Ensured <strong>16-byte stack alignment</strong> to satisfy calling convention requirements.</li>
+          </ul>
+
+          <h4>Multi-process Syscalls</h4>
+          <ul class="blog-list muted">
+            <li>Implemented <code>exec</code>, <code>wait</code>, <code>fork</code>, and <code>exit</code>, including parent–child synchronization.</li>
+            <li>Passed process-tree stress tests:
+              <ul>
+                <li><strong>fork_tree</strong>: reached <code>depth=3, fanout=4</code>, creating <strong>84 child processes</strong> in a single run;
+                  <strong>148 total processes</strong> across all test cases, with correct exit-status propagation.</li>
+                <li><strong>multi-oom-mt</strong> (resource exhaustion + crash recovery):
+                  achieved <strong>34 recursive exec depth</strong> consistently across <strong>10 repetitions</strong>,
+                  correctly terminating crashed children and reclaiming all kernel resources.</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h4>File-related Syscalls</h4>
+          <ul class="blog-list muted">
+            <li>Implemented file syscalls including <code>create</code>, <code>remove</code>, <code>tell</code>, <code>open</code>, <code>read</code>,
+              <code>write</code>, and <code>close</code>.</li>
+            <li>Designed an <strong>O(1) bitmap-based file descriptor table</strong> to efficiently locate
+              free slots for new descriptors.</li>
+          </ul>
+
+          <h3>2. Threading, Scheduling & Synchronization</h3>
+
+          <h4>Scheduling Policy</h4>
+          <ul class="blog-list muted">
+            <li>Implemented <strong>strict priority scheduling</strong>.</li>
+            <li>Added <strong>priority donation</strong>, including chained donation, to prevent priority inversion
+              under lock contention.</li>
+          </ul>
+
+          <h4>Synchronization Primitives</h4>
+          <ul class="blog-list muted">
+            <li>Implemented core primitives:
+              <ul>
+                <li><code>semaphore</code></li>
+                <li><code>lock</code></li>
+                <li><code>condition variable (condvar)</code></li>
+              </ul>
+            </li>
+            <li>Ensured correctness under preemption and priority-aware scheduling.</li>
+          </ul>
+
+          <h4>User Threads (pthread-like API)</h4>
+          <ul class="blog-list muted">
+            <li>Implemented user thread syscalls including <code>pthread_create</code>, <code>pthread_join</code>,
+              and <code>pthread_exit</code>.</li>
+            <li>Adopted a <strong>one-to-one threading model</strong> instead of green threads to avoid
+              process-wide blocking during I/O.</li>
+            <li>Passed recursive multithreaded stress test (<strong>search-arr</strong>):
+              <ul>
+                <li>Each search spawns <strong>31 threads</strong> (binary recursion over 16 elements).</li>
+                <li><strong>48 searches</strong>, creating <strong>1,488 threads</strong> total, validating per-thread user stacks,
+                  join semantics, and shared address-space behavior.</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>3. File System</h3>
+          <p class="muted">
+            Replaced the original list-based FAT design with an <strong>FFS-style indexed allocation</strong>
+            scheme and added a <strong>buffer cache</strong> using the <strong>Second-Chance Clock</strong> eviction algorithm.
+          </p>
+
+          <h4>Fast File System (FFS-style)</h4>
+          <ul class="blog-list muted">
+            <li>Implemented indexed allocation using direct, indirect, and doubly indirect blocks,
+              replacing list-based FAT traversal.</li>
+            <li>Supports files up to approximately <strong>8 MB</strong> (512-byte blocks).</li>
+            <li>Added <strong>lazy allocation and lazy loading</strong> for sparse file growth to reduce
+              unnecessary disk I/O.</li>
+          </ul>
+
+          <h4>Performance Evaluation (FFS vs FAT)</h4>
+
+          <h5>Sequential Create + Sequential Read</h5>
+          <ul class="blog-list muted">
+            <li><strong>Microbenchmark A:</strong> <code>100B file × 200 loops</code>
+              <ul>
+                <li>FAT: <strong>2183 ticks</strong> → FFS: <strong>980 ticks</strong>
+                  (<strong>55.1% improvement</strong>, <strong>2.23× speedup</strong>)</li>
+              </ul>
+            </li>
+            <li><strong>Microbenchmark B:</strong> <code>50B file × 400 loops</code>
+              <ul>
+                <li>FAT: <strong>7736 ticks</strong> → FFS: <strong>3040 ticks</strong>
+                  (<strong>60.7% improvement</strong>, <strong>2.54× speedup</strong>)</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h5>Sequential Create + Random Directory Read (Directory Locality Stress)</h5>
+          <ul class="blog-list muted">
+            <li><strong>Microbenchmark A:</strong> <code>100B file × 200 loops</code>
+              <ul>
+                <li>FAT: <strong>3364 ticks</strong> → FFS: <strong>963 ticks</strong>
+                  (<strong>71.4% improvement</strong>, <strong>3.49× speedup</strong>)</li>
+              </ul>
+            </li>
+            <li><strong>Microbenchmark B:</strong> <code>50B file × 400 loops</code>
+              <ul>
+                <li>FAT: <strong>7472 ticks</strong> → FFS: <strong>1988 ticks</strong>
+                  (<strong>73.4% improvement</strong>, <strong>3.76× speedup</strong>)</li>
+              </ul>
+            </li>
+          </ul>
+
+          <p class="muted">
+            <strong>Key Findings</strong><br>
+            1. <strong>FFS consistently outperforms FAT across both sequential and random workloads</strong>,
+            achieving speedups ranging from <strong>2.23× to 3.76×</strong>.<br>
+            2. <strong>Small-file access benefits most from FFS-style indexed allocation</strong>, indicating
+            more efficient handling of small-file metadata.<br>
+            3. <strong>Random access over small files yields the largest overall speedup</strong>, highlighting
+            improved directory locality and metadata organization.
+          </p>
+
+          <h4>Buffer Cache (Second-Chance Clock)</h4>
+          <ul class="blog-list muted">
+            <li>Implemented a block buffer cache with <strong>Second-Chance Clock</strong> replacement.</li>
+            <li>Concurrency design:
+              <ul>
+                <li>A <strong>global lock</strong> protects cache-wide metadata.</li>
+                <li><strong>Per-entry locks</strong> protect individual cache blocks.</li>
+                <li>A <code>busy</code> flag is used to avoid holding the global lock while waiting,
+                  reducing contention under concurrent access.</li>
+              </ul>
+            </li>
+            <li>Used a handle-based interface to enable <strong>kernel-level zero-copy–style access</strong>
+              and reduce unnecessary memory copying.</li>
+          </ul>
+
+          <h5>Performance Evaluation (Buffer Cache)</h5>
+          <p class="muted">
+            Under a repeated small I/O and metadata-heavy workload
+            (<code>100B accesses × 200 loops</code>), enabling the buffer cache significantly reduced
+            disk I/O by serving most requests directly from memory.
+          </p>
+          <ul class="blog-list muted">
+            <li><strong>Cache OFF:</strong> ~<strong>983 ticks</strong></li>
+            <li><strong>Cache ON (global lock):</strong> ~<strong>188 ticks</strong>
+              (<strong>~80–82% latency reduction</strong>, <strong>~5× throughput improvement</strong>)</li>
+          </ul>
+
+          <p class="muted">
+            <strong>Key Findings</strong><br>
+            - The global-lock buffer cache achieves the best performance under Pintos'
+            <strong>single-threaded</strong> execution model.<br>
+            - A per-entry lock design using a <code>busy</code> condition variable was also evaluated:
+              <ul>
+                <li>Execution time increased slightly to <strong>~203 ticks</strong> due to additional locking
+                  and condition-variable overhead.</li>
+                <li>While more scalable for concurrent workloads, this design provides no benefit
+                  in the single-threaded case.</li>
+              </ul>
+            - Therefore, the <strong>global-lock design</strong> was chosen as the final implementation for
+            optimal performance and simplicity.
+          </p>
+
+          <hr class="blog-divider">
+
+          <h2>Validation & Stress Tests</h2>
+          <ul class="blog-list muted">
+            <li>Process & syscalls: <code>fork_tree</code>, <code>multi-oom-mt</code></li>
+            <li>User threads: <code>search-arr</code></li>
+            <li>Additional correctness tests from the basic test suite</li>
+          </ul>
+
+          <h2>Key Design Decisions</h2>
+          <ul class="blog-list muted">
+            <li>Prioritized correctness and deterministic behavior, especially for:
+              <ul>
+                <li><code>wait</code> semantics</li>
+                <li>crash handling</li>
+                <li>resource cleanup paths</li>
+              </ul>
+            </li>
+            <li>Designed for robustness under failure:
+              <ul>
+                <li>syscall failures do not panic the kernel</li>
+                <li>abnormal process termination does not leak kernel resources</li>
+              </ul>
+            </li>
+            <li>Integrated priority-aware scheduling and donation across all synchronization
+              primitives.</li>
+          </ul>
+
+          <h2>Challenges & Lessons Learned</h2>
+          <ul class="blog-list muted">
+            <li>Kernel subsystems require well-defined invariants before implementation
+              (process/thread lifecycles, ownership, and cleanup).</li>
+            <li>Incremental development significantly reduces debugging complexity in OS projects.</li>
+            <li>Fine-grained commits and continuous testing are critical for maintaining
+              kernel stability.</li>
+          </ul>
+        </div>
+      </article>
+    </main>
+  </div>
+
+  <div class="social-dock" aria-label="Social links">
+    <a class="social-btn" href="https://github.com/yourname" target="_blank" rel="noreferrer noopener" data-label="GitHub">
+      <svg class="social-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M9 19c-5 1.5-5-2.5-7-3m14 6v-3.87a3.37 3.37 0 0 0-.94-2.61c3.14-.35 6.44-1.54 6.44-7A5.44 5.44 0 0 0 20 4.77 5.07 5.07 0 0 0 19.91 1S18.73.65 16 2.48a13.38 13.38 0 0 0-7 0C6.27.65 5.09 1 5.09 1A5.07 5.07 0 0 0 5 4.77a5.44 5.44 0 0 0-1.5 3.78c0 5.42 3.3 6.61 6.44 7A3.37 3.37 0 0 0 9 18.13V22"/>
+      </svg>
+    </a>
+    <a class="social-btn" href="https://www.linkedin.com/in/yourname" target="_blank" rel="noreferrer noopener" data-label="LinkedIn">
+      <svg class="social-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6z"/>
+        <rect x="2" y="9" width="4" height="12"/>
+        <circle cx="4" cy="4" r="2"/>
+      </svg>
+    </a>
+    <a class="social-btn" href="./assets/resume.pdf" target="_blank" rel="noreferrer noopener" data-label="Resume">
+      <svg class="social-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+        <polyline points="14 2 14 8 20 8"/>
+        <line x1="16" y1="13" x2="8" y2="13"/>
+        <line x1="16" y1="17" x2="8" y2="17"/>
+        <polyline points="10 9 9 9 8 9"/>
+      </svg>
+    </a>
+    <a class="social-btn" href="https://www.instagram.com/yourname" target="_blank" rel="noreferrer noopener" data-label="Instagram">
+      <svg class="social-icon" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
+        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/>
+      </svg>
+    </a>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
