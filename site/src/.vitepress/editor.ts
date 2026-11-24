@@ -13,7 +13,8 @@ import { srcDir, draftFiles, listPosts, listSeries, readPost } from './posts'
  *   GET  posts    文章列表 + 系列目录
  *   GET  post     读一篇（?file=blog/xx.md）
  *   POST save     保存 { file, content, create? }
- *   POST new      按模板新建 { series, slug, title, description }
+ *   POST new      按模板新建 { series, slug, title, description }（series 为空是 blog/ 根目录，不存在的目录会新建）
+ *   POST move     移动 / 改名 { file, dir, slug }，同时修正相对引用、图片目录和全站链接
  *   POST render   用站点同一套 markdown 配置渲染未保存的内容 { file, content } → { html, frontmatter }
  *   POST upload   上传图片 { file, name, data(base64) } → public/assets/blog/<slug>/
  *   GET  publish  发布前检查：分支、提交身份、待提交改动
@@ -107,7 +108,111 @@ function newPostContent(series: string, slug: string, title: string, description
     .replace(/^  date: .*$/m, `  date: ${today}`)
     .replace(/<!--\s*\n使用方法[\s\S]*?-->\n\n/, '')
     .replace(/^# 文章标题$/m, `# ${title}`)
-    .replace('// ai infra · 第 N 篇', series === 'ai-infra' && num ? `// ai infra · 第 ${Number(num)} 篇` : `// ${series}`)
+    .replace('// ai infra · 第 N 篇', series === 'ai-infra' && num ? `// ai infra · 第 ${Number(num)} 篇` : `// ${series || 'writing'}`)
+}
+
+/** 目录参数：'' 是 blog/ 根目录；已有子目录直接用；新目录名要符合 SLUG_RE（allowNew 时才允许） */
+function checkDir(dir: unknown, allowNew: boolean): string {
+  const d = String(dir ?? '')
+  if (d === '' || listSeries().includes(d)) return d
+  if (!allowNew || !SLUG_RE.test(d) || d === 'data')
+    throw new HttpError(400, `目录名只能用小写字母、数字和 -：${d}`)
+  return d
+}
+
+/* ---------- 移动文章：改目录 / 文件名，并修正站内引用 ---------- */
+const posix = path.posix
+const escRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+const noExt = (p: string) => p.replace(/\.(md|html)$/, '')
+const relFrom = (fromDir: string, to: string) => {
+  const r = posix.relative(fromDir, to)
+  return r.startsWith('.') ? r : `./${r}`
+}
+
+/** src 下会引用文章的文件：markdown、主题代码、public 里的跳转页 */
+function refFiles(): string[] {
+  const out: string[] = []
+  const walk = (rel: string) => {
+    for (const e of fs.readdirSync(path.join(srcDir, rel), { withFileTypes: true })) {
+      const r = rel ? `${rel}/${e.name}` : e.name
+      if (e.isDirectory()) {
+        if (e.name !== 'node_modules' && e.name !== 'cache' && e.name !== 'dist') walk(r)
+      } else if (/\.(md|ts|mts|vue|html)$/.test(e.name)) out.push(r)
+    }
+  }
+  walk('')
+  return out
+}
+
+/** 改写一段文本里的相对引用（./、../ 开头的字符串，和 markdown 链接里的裸文件名） */
+function mapRelative(text: string, fn: (target: string) => string | null): string {
+  const rel = (q: string, t: string, rest: string) => {
+    const n = fn(t)
+    return n === null ? null : q + n + rest
+  }
+  return text
+    .replace(/(['"(])(\.\.?\/[^'"()\s#?]*)/g, (all, q, t) => rel(q, t, '') ?? all)
+    .replace(/(\]\()(?![a-z][a-z0-9+.-]*:|\/|#|\.)([^()\s#?]+)/gi, (all, q, t) => rel(q, t, '') ?? all)
+}
+
+/**
+ * 把 blog/<from>.md 移到 blog/<to>.md：
+ * - 文章自己的相对引用（./data/xx.json、../xx）按新位置重算
+ * - 改了文件名时，图片目录 public/assets/blog/<旧名>/ 一起改名，全站对它的引用跟着改
+ * - 全站指向旧网址的链接（/blog/xx、/my-website/blog/xx、相对链接）改成新网址
+ */
+function movePost(from: string, to: string): string[] {
+  const fromDir = posix.dirname(from)
+  const toDir = posix.dirname(to)
+  const oldBase = posix.basename(from, '.md')
+  const newBase = posix.basename(to, '.md')
+  const absFrom = path.join(srcDir, from)
+  const absTo = path.join(srcDir, to)
+
+  const imgFrom = path.join(srcDir, 'public', 'assets', 'blog', oldBase)
+  const imgTo = path.join(srcDir, 'public', 'assets', 'blog', newBase)
+  const moveImages = oldBase !== newBase && fs.existsSync(imgFrom)
+  if (moveImages && fs.existsSync(imgTo)) throw new HttpError(409, `图片目录 public/assets/blog/${newBase}/ 已存在`)
+
+  // 1. 文章本身：相对引用按新目录重算
+  const own = mapRelative(fs.readFileSync(absFrom, 'utf8'), (t) => {
+    const target = posix.normalize(posix.join(fromDir, t))
+    const moved = noExt(target) === noExt(from) ? to.replace(/\.md$/, target.match(/\.(md|html)$/)?.[0] ?? '') : target
+    const r = relFrom(toDir, moved)
+    return r === t || r === `./${t}` ? null : r
+  })
+  fs.mkdirSync(path.dirname(absTo), { recursive: true })
+  fs.writeFileSync(absTo, own, 'utf8')
+  fs.unlinkSync(absFrom)
+  // 搬空的子目录删掉，免得在目录列表里留个空组
+  const oldDirAbs = path.dirname(absFrom)
+  if (fromDir !== 'blog' && fs.readdirSync(oldDirAbs).length === 0) fs.rmdirSync(oldDirAbs)
+  if (moveImages) fs.renameSync(imgFrom, imgTo)
+
+  // 2. 全站引用
+  const oldUrl = '/' + noExt(from)
+  const newUrl = '/' + noExt(to)
+  const absRe = new RegExp(`(^|[\\s'"(=\`])((?:/my-website)?)${escRe(oldUrl)}(\\.md|\\.html)?(?=[#?'"\\s)<>\`]|$)`, 'gm')
+  const updated: string[] = []
+  for (const f of refFiles()) {
+    const abs = path.join(srcDir, f)
+    const src = fs.readFileSync(abs, 'utf8')
+    let text = src.replace(absRe, (_a, pre, base, ext) => `${pre}${base}${newUrl}${ext ?? ''}`)
+    if (moveImages) text = text.split(`/assets/blog/${oldBase}/`).join(`/assets/blog/${newBase}/`)
+    if (f.endsWith('.md') && f !== to) {
+      const dir = posix.dirname(f)
+      text = mapRelative(text, (t) => {
+        const target = posix.normalize(posix.join(dir, t))
+        if (noExt(target) !== noExt(from)) return null
+        return relFrom(dir, noExt(to)) + (t.match(/\.(md|html)$/)?.[0] ?? '')
+      })
+    }
+    if (text !== src) {
+      fs.writeFileSync(abs, text, 'utf8')
+      if (f !== to) updated.push(f)
+    }
+  }
+  return updated
 }
 
 async function publishPlan() {
@@ -206,13 +311,16 @@ async function publish(message: string, res: ServerResponse) {
     if ((await git(['reset', '-q', '--', ...draftPaths], log)).code !== 0) return done(false)
   }
 
-  const staged = await git(['diff', '--cached', '--quiet', '--', ...PUBLISH_PATHS])
+  // 带路径的 commit 只提交这两个目录，暂存区里别的改动（比如 README）不会被带上。
+  // 带路径时 git 取的是工作区内容：已上线又转回草稿的文章（已跟踪）也会被带上，所以要显式排除，
+  // 仓库里保留它上线时的版本，线上页面因为 build 排除了草稿而下线
+  const pathspec = [...PUBLISH_PATHS, ...draftPaths.map((p) => `:(exclude)${p}`)]
+  const staged = await git(['diff', '--cached', '--quiet', '--', ...pathspec])
   if (staged.code === 0) {
     log('没有需要提交的改动，跳过 commit\n')
   } else {
-    step(`git commit -m "${message}" -- ${PUBLISH_PATHS.join(' ')}`)
-    // 带路径的 commit 只提交这两个目录，暂存区里别的改动（比如 README）不会被带上
-    if ((await git(['commit', '-m', message, '--', ...PUBLISH_PATHS], log)).code !== 0) return done(false)
+    step(`git commit -m "${message}" -- ${PUBLISH_PATHS.join(' ')}${draftPaths.length ? '   # 排除草稿' : ''}`)
+    if ((await git(['commit', '-m', message, '--', ...pathspec], log)).code !== 0) return done(false)
   }
 
   step('git push origin HEAD')
@@ -234,11 +342,14 @@ async function handle(server: ViteDevServer, req: IncomingMessage, res: ServerRe
 
   if (method === 'GET' && route === 'posts') {
     const posts = listPosts()
-    const series = listSeries().map((name) => {
+    // name 为空是 blog/ 根目录；next 是目录里下一个编号（目录里没有编号文章时为空）
+    const series = ['', ...listSeries()].map((name) => {
+      const parent = name ? `blog/${name}` : 'blog'
       const nums = posts
-        .filter((p) => p.file.startsWith(`blog/${name}/`))
-        .map((p) => Number(path.basename(p.file).match(/^(\d+)-/)?.[1] ?? -1))
-      return { name, next: String(Math.max(-1, ...nums) + 1).padStart(2, '0') }
+        .filter((p) => path.posix.dirname(p.file) === parent)
+        .map((p) => Number(path.basename(p.file).match(/^(\d+)-/)?.[1] ?? NaN))
+        .filter((n) => !Number.isNaN(n))
+      return { name, next: nums.length || name ? String(Math.max(-1, ...nums) + 1).padStart(2, '0') : '' }
     })
     return sendJson(res, 200, { posts, series })
   }
@@ -275,19 +386,37 @@ async function handle(server: ViteDevServer, req: IncomingMessage, res: ServerRe
 
   if (method === 'POST' && route === 'new') {
     const body = await readBody(req)
-    const series = String(body.series ?? '')
+    const series = checkDir(body.series, true)
     const slug = String(body.slug ?? '')
     const title = String(body.title ?? '').trim()
-    if (!listSeries().includes(series)) throw new HttpError(400, `没有系列目录 blog/${series}`)
-    if (!SLUG_RE.test(slug)) throw new HttpError(400, '文件名只能用小写字母、数字和 -，例如 01-architecture')
+    if (!SLUG_RE.test(slug) || slug === 'index') throw new HttpError(400, '文件名只能用小写字母、数字和 -，例如 01-architecture')
     if (!title || /[\r\n]/.test(title)) throw new HttpError(400, '标题不能为空，也不能换行')
-    const file = `blog/${series}/${slug}.md`
+    const file = series ? `blog/${series}/${slug}.md` : `blog/${slug}.md`
     const abs = path.join(srcDir, file)
     if (fs.existsSync(abs)) throw new HttpError(409, `${file} 已存在`)
     const desc = String(body.description ?? '').replace(/[\r\n]+/g, ' ').trim()
+    fs.mkdirSync(path.dirname(abs), { recursive: true })
     fs.writeFileSync(abs, newPostContent(series, slug, title, desc), 'utf8')
     setTimeout(reloadSidebar, 300)
     return sendJson(res, 200, { file, restarting: true })
+  }
+
+  if (method === 'POST' && route === 'move') {
+    const body = await readBody(req)
+    const from = checkPost(body.file)
+    const dir = checkDir(body.dir, true)
+    const slug = String(body.slug ?? '')
+    if (!SLUG_RE.test(slug) || slug === 'index') throw new HttpError(400, '文件名只能用小写字母、数字和 -，例如 01-architecture')
+    if (posix.basename(from) === 'index.md') throw new HttpError(400, '目录的 index.md 不能移动')
+    if (!fs.existsSync(path.join(srcDir, from))) throw new HttpError(404, `${from} 不存在`)
+    const to = dir ? `blog/${dir}/${slug}.md` : `blog/${slug}.md`
+    if (to === from) throw new HttpError(400, '目录和文件名都没变')
+    if (fs.existsSync(path.join(srcDir, to))) throw new HttpError(409, `${to} 已存在`)
+    // 已提交过的文章（多半已上线）换网址后旧链接会 404，前端据此提示
+    const published = (await git(['ls-files', '--error-unmatch', '--', `site/src/${from}`])).code === 0
+    const updated = movePost(from, to)
+    setTimeout(reloadSidebar, 300)
+    return sendJson(res, 200, { file: to, updated, published, restarting: true })
   }
 
   if (method === 'POST' && route === 'upload') {

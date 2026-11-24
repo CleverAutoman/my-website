@@ -5,20 +5,13 @@
     <link>https://cleverautoman.github.io/my-website/blog/</link>
     <atom:link href="https://cleverautoman.github.io/my-website/feed.xml" rel="self" type="application/rss+xml"/>
     <description>Software engineer building AI infrastructure: multi-agent orchestration, LLM evaluation, and the distributed systems underneath.</description>
-    <lastBuildDate>Tue, 24 Nov 2026 22:13:52 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 24 Nov 2026 22:55:31 GMT</lastBuildDate>
     <item>
       <title>谈谈为啥突然想写博客</title>
       <link>https://cleverautoman.github.io/my-website/blog/ai-infra/00-preface</link>
       <guid isPermaLink="true">https://cleverautoman.github.io/my-website/blog/ai-infra/00-preface</guid>
       <pubDate>Tue, 24 Nov 2026 00:00:00 GMT</pubDate>
       <description>序</description>
-    </item>
-    <item>
-      <title>从零开始：在 8GB 显卡上搭环境、跑模型、做压测</title>
-      <link>https://cleverautoman.github.io/my-website/blog/ai-infra/00-wsl2-sglang-env</link>
-      <guid isPermaLink="true">https://cleverautoman.github.io/my-website/blog/ai-infra/00-wsl2-sglang-env</guid>
-      <pubDate>Tue, 17 Nov 2026 00:00:00 GMT</pubDate>
-      <description>一台装着 RTX 2070 的 Windows 电脑：从驱动到容器搭好 SGLang 环境，在 8GB 显存上跑起第一个模型，再学会用 bench_serving 量出 TTFT、TPOT 和吞吐</description>
     </item>
     <item>
       <title>Relational Database Engine</title>

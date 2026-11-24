@@ -2,7 +2,7 @@ import { execSync } from 'node:child_process'
 import { defineConfig, type HeadConfig } from 'vitepress'
 import type { PageInfo } from './og'
 import { editorPlugin } from './editor'
-import { draftFiles, seriesSidebar } from './posts'
+import { blogSidebar, draftFiles } from './posts'
 
 // GitHub Pages 从 main 分支的 /docs 发布，站点地址 https://cleverautoman.github.io/my-website/
 const base = '/my-website/'
@@ -85,27 +85,15 @@ export default defineConfig({
       { text: 'Resume', link: '/assets/resume.pdf' }
     ],
 
-    // AI Infra 系列的文章列表按 blog/ai-infra/ 下的文件自动生成（见 posts.ts），新增文章不用改这里
+    // 博客侧边栏按 blog/ 下的目录和文件自动生成（见 posts.ts）：每个子目录一组，根目录的文章归到 rootGroup。
+    // 新增、移动文章都不用改这里
     sidebar: {
       '/blog/': [
         {
           text: 'Blog',
           items: [{ text: 'All posts', link: '/blog/' }]
         },
-        {
-          text: 'AI Infra 实战笔记',
-          items: [
-            { text: '系列路线图', link: '/blog/ai-infra/' },
-            ...seriesSidebar('ai-infra', { includeDrafts: !isBuild })
-          ]
-        },
-        {
-          text: 'Systems Design Docs',
-          items: [
-            { text: 'Operating System Project', link: '/blog/os-project' },
-            { text: 'Relational Database Engine', link: '/blog/db-engine' }
-          ]
-        }
+        ...blogSidebar({ includeDrafts: !isBuild, rootGroup: 'Systems Design Docs' })
       ]
     },
 

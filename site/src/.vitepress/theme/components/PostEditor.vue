@@ -100,9 +100,10 @@ async function open(f: string) {
   try { localStorage.setItem('editor:last', f) } catch {}
 }
 
-async function save({ manual = true, force = false } = {}) {
-  if (!file.value || saving.value) return
-  if (!dirty.value && !(manual && sidebarStale.value)) return
+/** 返回 true 表示服务器要重启（侧边栏更新），页面马上会整页刷新 */
+async function save({ manual = true, force = false } = {}): Promise<boolean> {
+  if (!file.value || saving.value) return false
+  if (!dirty.value && !(manual && sidebarStale.value)) return false
   saving.value = true
   const text = content.value
   try {
@@ -117,15 +118,41 @@ async function save({ manual = true, force = false } = {}) {
     const at = new Date().toLocaleTimeString('zh-CN', { hour12: false })
     say(d.restarting ? '侧边栏更新中，页面会自动刷新…' : `${manual ? '保存' : '自动保存'}于 ${at}`)
     sidebarStale.value = !manual && (sidebarStale.value || d.sidebarChanged)
+    return d.restarting
   } catch (e: any) {
     if (e.status === 409 && !force && confirm(`${e.message}。\n\n确定用编辑器里的内容覆盖吗？`)) {
       saving.value = false
       return save({ manual, force: true })
     }
     say(`保存失败：${e.message}`, true)
+    return false
   } finally {
     saving.value = false
   }
+}
+
+/* ---------- 草稿 / 公开切换：改 frontmatter 的 draft 并保存（侧边栏随之更新） ---------- */
+const FM_RE = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/
+const isDraft = computed(() => {
+  const m = content.value.match(FM_RE)
+  return !!m && /^draft:[ \t]*true[ \t]*$/m.test(m[1] ?? '')
+})
+const LS_FLASH = 'editor:flash'
+async function setDraft(on: boolean) {
+  if (!file.value || saving.value || on === isDraft.value) return
+  const m = content.value.match(FM_RE)
+  const body = m ? content.value.slice(m[0].length) : '\n' + content.value
+  const lines = (m?.[1] ?? '').split(/\r?\n/).filter((l) => l !== '' && !/^draft:/.test(l))
+  if (on) lines.push('draft: true')
+  content.value = lines.length ? `---\n${lines.join('\n')}\n---\n${body}` : body.replace(/^\n/, '')
+  const msg = on
+    ? '已转为草稿：本地能看，发布时不上线；已上线的页面会在下次发布时下线'
+    : '已设为公开：点「发布…」后上线'
+  // 草稿状态变了会更新侧边栏、整页刷新，提示放到刷新之后显示
+  const restarting = await save()
+  if (statusErr.value) return
+  say(msg)
+  if (restarting) try { sessionStorage.setItem(LS_FLASH, msg) } catch {}
 }
 
 function backup() {
@@ -223,28 +250,38 @@ async function uploadImages(files: File[]) {
     }
   }
 }
+/* ---------- 目录选择（新建、移动共用）：'' 是 blog/ 根目录，NEW_DIR 表示新建目录 ---------- */
+const NEW_DIR = '\u0000new'
+const dirLabel = (name: string) => (name ? `blog/${name}/` : 'blog/（根目录）')
+const postPath = (dir: string, slug: string) => (slug ? (dir ? `blog/${dir}/${slug}.md` : `blog/${slug}.md`) : '')
+const pickDir = (sel: string, typed: string) => (sel === NEW_DIR ? typed.trim() : sel)
+
 /* ---------- 新建文章 ---------- */
 const showNew = ref(false)
-const nf = ref({ series: '', num: '', slug: '', title: '', description: '' })
+const nf = ref({ series: '', newDir: '', num: '', slug: '', title: '', description: '' })
 const nfError = ref('')
 function openNew() {
-  const s = series.value.find((x) => x.name === 'ai-infra') ?? series.value[0]
-  nf.value = { series: s?.name ?? '', num: s?.next ?? '', slug: '', title: '', description: '' }
+  // 默认放在当前文章所在目录
+  const curDir = file.value.split('/').slice(1, -1).join('/')
+  const s = series.value.find((x) => x.name === curDir) ?? series.value.find((x) => x.name === 'ai-infra') ?? series.value[0]
+  nf.value = { series: s?.name ?? '', newDir: '', num: s?.next ?? '', slug: '', title: '', description: '' }
   nfError.value = ''
   showNew.value = true
 }
 watch(() => nf.value.series, (name) => {
-  nf.value.num = series.value.find((x) => x.name === name)?.next ?? ''
+  nf.value.num = name === NEW_DIR ? '00' : series.value.find((x) => x.name === name)?.next ?? ''
 })
-const nfFile = computed(() => {
-  const slug = [nf.value.num, nf.value.slug].filter(Boolean).join('-')
-  return slug ? `blog/${nf.value.series}/${slug}.md` : ''
-})
+const nfSlug = computed(() => [nf.value.num.trim(), nf.value.slug.trim()].filter(Boolean).join('-'))
+const nfFile = computed(() => postPath(pickDir(nf.value.series, nf.value.newDir), nfSlug.value))
 async function createPost() {
   nfError.value = ''
   try {
-    const slug = [nf.value.num, nf.value.slug.trim()].filter(Boolean).join('-')
-    const d = await api<{ file: string }>('new', { ...nf.value, slug })
+    const d = await api<{ file: string }>('new', {
+      series: pickDir(nf.value.series, nf.value.newDir),
+      slug: nfSlug.value,
+      title: nf.value.title,
+      description: nf.value.description
+    })
     showNew.value = false
     if (dirty.value) await save()
     // 服务器马上会重启并刷新这个页面，先把要打开的文件写进地址栏
@@ -257,6 +294,57 @@ async function createPost() {
     await open(d.file)
   } catch (e: any) {
     nfError.value = e.message
+  }
+}
+
+/* ---------- 移动文章：换目录 / 改文件名 ---------- */
+const showMove = ref(false)
+const mv = ref({ dir: '', newDir: '', slug: '' })
+const mvError = ref('')
+const mvBusy = ref(false)
+const canMove = computed(() => !!file.value && !file.value.endsWith('/index.md'))
+const mvFile = computed(() => postPath(pickDir(mv.value.dir, mv.value.newDir), mv.value.slug.trim()))
+function openMove() {
+  const parts = file.value.split('/')
+  mv.value = { dir: parts.slice(1, -1).join('/'), newDir: '', slug: parts[parts.length - 1].replace(/\.md$/, '') }
+  mvError.value = ''
+  showMove.value = true
+}
+async function movePost() {
+  mvError.value = ''
+  mvBusy.value = true
+  try {
+    // 移动读的是磁盘上的文件，先把未保存的内容存下去（不触发重启，移动之后统一重启）
+    if (dirty.value) await save({ manual: false })
+    if (dirty.value) throw new Error('当前改动没保存成功，先处理保存问题')
+    const from = file.value
+    const d = await api<{ file: string; updated: string[]; published: boolean }>('move', {
+      file: from, dir: pickDir(mv.value.dir, mv.value.newDir), slug: mv.value.slug.trim()
+    })
+    showMove.value = false
+    try {
+      const b = localStorage.getItem(lsKey(from))
+      if (b) localStorage.setItem(lsKey(d.file), b)
+      localStorage.removeItem(lsKey(from))
+      localStorage.setItem('editor:last', d.file)
+    } catch {}
+    const u = new URL(location.href)
+    u.searchParams.set('file', d.file)
+    history.replaceState(history.state, '', u)
+    const msg = [
+      `已移到 ${d.file}`,
+      d.updated.length ? `同时更新了 ${d.updated.length} 个文件里的链接（${d.updated.join('、')}）` : '',
+      d.published ? '这篇已经发布过，网址变了，旧链接在下次发布后会 404' : ''
+    ].filter(Boolean).join('；')
+    try { sessionStorage.setItem(LS_FLASH, msg) } catch {}
+    say(msg)
+    await loadList()
+    file.value = ''
+    await open(d.file)
+  } catch (e: any) {
+    mvError.value = e.message
+  } finally {
+    mvBusy.value = false
   }
 }
 
@@ -325,6 +413,11 @@ onMounted(async () => {
     const want = new URL(location.href).searchParams.get('file') || last
     const f = posts.value.find((p) => p.file === want)?.file ?? posts.value.find((p) => p.file.startsWith('blog/ai-infra/0'))?.file
     if (f) await open(f)
+    try {
+      const flash = sessionStorage.getItem(LS_FLASH)
+      sessionStorage.removeItem(LS_FLASH)
+      if (flash) say(flash)
+    } catch {}
   } catch (e: any) {
     say(`接口不可用：${e.message}（编辑器只在 npm run dev 下可用）`, true)
   }
@@ -344,6 +437,23 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
         </optgroup>
       </select>
       <button class="btn" @click="openNew">＋ 新文章</button>
+      <button class="btn" :disabled="!canMove" title="换目录或改文件名，站内链接会一起更新" @click="openMove">移动…</button>
+      <span v-if="file" class="seg vis" role="group" aria-label="发布状态">
+        <button
+          :class="{ on: isDraft, draft: true }"
+          :disabled="saving"
+          :aria-pressed="isDraft"
+          title="frontmatter 写 draft: true：本地能看，发布时不构建、不提交"
+          @click="setDraft(true)"
+        >草稿</button>
+        <button
+          :class="{ on: !isDraft }"
+          :disabled="saving"
+          :aria-pressed="!isDraft"
+          title="去掉 draft：下次「发布…」时上线"
+          @click="setDraft(false)"
+        >公开</button>
+      </span>
       <span class="spacer" />
       <span class="state" :class="{ dirty, err: statusErr }">
         <template v-if="dirty">● 未保存</template>
@@ -373,7 +483,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
         <footer class="foot">
           <span>{{ file || '—' }}</span>
           <span>{{ stats }}</span>
-          <span class="hint">Ctrl B 粗体 · Ctrl I 斜体 · Ctrl E 行内代码 · Ctrl F 查找 · 粘贴图片上传 · frontmatter 写 draft: true 不发布</span>
+          <span class="hint">Ctrl B 粗体 · Ctrl I 斜体 · Ctrl E 行内代码 · Ctrl F 查找 · 粘贴图片上传</span>
         </footer>
       </section>
       <section class="pane preview">
@@ -405,14 +515,17 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
     <div v-if="showNew" class="modal" @click.self="showNew = false">
       <form class="dialog" @submit.prevent="createPost">
         <h3>新文章</h3>
-        <label>系列目录
+        <label>目录
           <select v-model="nf.series">
-            <option v-for="s in series" :key="s.name" :value="s.name">blog/{{ s.name }}/</option>
+            <option v-for="s in series" :key="s.name" :value="s.name">{{ dirLabel(s.name) }}</option>
+            <option :value="NEW_DIR">＋ 新建目录…</option>
           </select>
+          <input v-if="nf.series === NEW_DIR" v-model="nf.newDir" required pattern="[a-z0-9][a-z0-9\-]*" placeholder="新目录名，例如 ddia" />
+          <small>每个子目录在博客侧边栏里是一组；根目录的文章归在「Systems Design Docs」</small>
         </label>
         <label>文件名
           <span class="row">
-            <input v-model="nf.num" class="num" placeholder="01" />
+            <input v-model="nf.num" class="num" placeholder="编号" pattern="[0-9]*" title="可留空；系列目录里决定侧边栏顺序" />
             <span>-</span>
             <input v-model="nf.slug" placeholder="architecture-overview" required pattern="[a-z0-9][a-z0-9\-]*" />
           </span>
@@ -420,11 +533,40 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
         </label>
         <label>标题 <input v-model="nf.title" required placeholder="架构总览：一个请求经过哪些进程" /></label>
         <label>一句话简介 <input v-model="nf.description" placeholder="用于列表、分享卡片和 RSS" /></label>
-        <p class="note">从 templates/post.md 生成，默认带 <code>draft: true</code>：本地能看，发布时不上线。写完删掉这一行再发布。</p>
+        <p class="note">从 templates/post.md 生成，默认带 <code>draft: true</code>：本地能看，发布时不上线。写完在工具栏切到「公开」再发布。</p>
         <p v-if="nfError" class="error">{{ nfError }}</p>
         <div class="actions">
           <button type="button" class="btn" @click="showNew = false">取消</button>
           <button type="submit" class="btn brand">创建</button>
+        </div>
+      </form>
+    </div>
+
+    <!-- 移动 -->
+    <div v-if="showMove" class="modal" @click.self="!mvBusy && (showMove = false)">
+      <form class="dialog" @submit.prevent="movePost">
+        <h3>移动文章</h3>
+        <p class="note">当前：<code>{{ file }}</code></p>
+        <label>目录
+          <select v-model="mv.dir">
+            <option v-for="s in series" :key="s.name" :value="s.name">{{ dirLabel(s.name) }}</option>
+            <option :value="NEW_DIR">＋ 新建目录…</option>
+          </select>
+          <input v-if="mv.dir === NEW_DIR" v-model="mv.newDir" required pattern="[a-z0-9][a-z0-9\-]*" placeholder="新目录名，例如 ddia" />
+        </label>
+        <label>文件名
+          <input v-model="mv.slug" required pattern="[a-z0-9][a-z0-9\-]*" />
+          <small>系列目录里用「编号-名字」决定侧边栏顺序。新网址：{{ mvFile || '…' }}</small>
+        </label>
+        <p class="note">
+          会一起处理：文章里的相对引用（如 <code>./data/xx.json</code>）按新位置重算；改了文件名时图片目录
+          <code>public/assets/blog/&lt;文件名&gt;/</code> 跟着改名；站内指向旧网址的链接（其他文章、首页数据、跳转页）改成新网址。
+          已发布过的文章网址会变，站外的旧链接会失效。
+        </p>
+        <p v-if="mvError" class="error">{{ mvError }}</p>
+        <div class="actions">
+          <button type="button" class="btn" :disabled="mvBusy" @click="showMove = false">取消</button>
+          <button type="submit" class="btn brand" :disabled="mvBusy || mvFile === file">{{ mvBusy ? '移动中…' : '移动' }}</button>
         </div>
       </form>
     </div>
@@ -582,6 +724,10 @@ iframe { flex: 1; width: 100%; border: 0; background: var(--vp-c-bg); }
   cursor: pointer;
 }
 .seg button.on { background: var(--vp-c-brand-soft); color: var(--vp-c-brand-1); }
+.seg.vis { font-size: 13px; }
+.seg.vis button { padding: 5px 12px; }
+.seg.vis button:disabled { cursor: default; }
+.seg.vis button.draft.on { background: var(--vp-c-warning-soft); color: var(--vp-c-warning-1); }
 .phint { color: var(--vp-c-text-3); overflow: hidden; text-overflow: ellipsis; }
 .perr { color: var(--x-err); overflow: hidden; text-overflow: ellipsis; }
 

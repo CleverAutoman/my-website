@@ -10,6 +10,8 @@ export interface PostMeta {
   file: string
   title: string
   sidebar?: string
+  /** 目录的 index.md 可写 group，作为侧边栏分组名 */
+  group?: string
   date?: string
   draft: boolean
 }
@@ -34,6 +36,7 @@ export function readPost(file: string): PostMeta {
     file,
     title: fm.title || h1 || path.basename(file, '.md'),
     sidebar: fm.sidebar || undefined,
+    group: fm.group || undefined,
     date: fm.date || undefined,
     draft: fm.draft === 'true'
   }
@@ -57,20 +60,50 @@ export function listPosts(): PostMeta[] {
 export function listSeries(): string[] {
   return fs
     .readdirSync(path.join(srcDir, 'blog'), { withFileTypes: true })
-    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.') && e.name !== 'data')
     .map((e) => e.name)
+    .sort()
 }
 
-/** 某个系列目录生成侧边栏条目：文件名排序，文字取 frontmatter 的 sidebar，没有就用「编号 · 标题」 */
+/**
+ * 某个目录生成侧边栏条目：文件名排序，文字取 frontmatter 的 sidebar，没有就用「编号 · 标题」。
+ * dir 为空表示 blog/ 根目录
+ */
 export function seriesSidebar(dir: string, { includeDrafts }: { includeDrafts: boolean }) {
-  return listPosts()
-    .filter((p) => path.posix.dirname(p.file) === `blog/${dir}` && !p.file.endsWith('/index.md'))
+  const parent = dir ? `blog/${dir}` : 'blog'
+  const list = listPosts().filter((p) => path.posix.dirname(p.file) === parent && path.posix.basename(p.file) !== 'index.md')
+  // 根目录的文章没有编号，按日期排
+  if (!dir) list.sort((a, b) => (a.date ?? '').localeCompare(b.date ?? '') || a.file.localeCompare(b.file))
+  return list
     .filter((p) => includeDrafts || !p.draft)
     .map((p) => {
       const num = path.basename(p.file).match(/^(\d+)-/)?.[1]
       const text = p.sidebar || (num ? `${num} · ${p.title}` : p.title)
       return { text: p.draft ? `${text}（草稿）` : text, link: '/' + p.file.replace(/\.md$/, '') }
     })
+}
+
+/**
+ * /blog/ 的整个侧边栏：每个子目录一组，blog/ 根目录下的文章一组（rootGroup），没有文章的组不显示。
+ * 子目录的分组名和概览链接文字取它 index.md 的 group / sidebar，
+ * 没写就拆标题「分组名 · 概览名」，再没有就用目录名和「概览」
+ */
+export function blogSidebar({ includeDrafts, rootGroup }: { includeDrafts: boolean; rootGroup: string }) {
+  const groups: { text: string; items: { text: string; link: string }[] }[] = []
+  for (const dir of listSeries()) {
+    const indexFile = `blog/${dir}/index.md`
+    const index = fs.existsSync(path.join(srcDir, indexFile)) ? readPost(indexFile) : null
+    const [head, tail] = (index?.title ?? '').split(/\s+·\s+/)
+    const items = seriesSidebar(dir, { includeDrafts })
+    if (index && (includeDrafts || !index.draft)) {
+      const text = index.sidebar || tail || '概览'
+      items.unshift({ text: index.draft ? `${text}（草稿）` : text, link: `/blog/${dir}/` })
+    }
+    if (items.length) groups.push({ text: index?.group || (tail ? head : '') || dir, items })
+  }
+  const root = seriesSidebar('', { includeDrafts })
+  if (root.length) groups.push({ text: rootGroup, items: root })
+  return groups
 }
 
 /** frontmatter 写了 draft: true 的文章，build 时排除 */
