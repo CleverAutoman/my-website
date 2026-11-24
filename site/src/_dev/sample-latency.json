@@ -1,0 +1,11 @@
+{
+  "title": "示例：TTFT 分位数（并发 16）",
+  "kind": "bar",
+  "x": { "label": "分位数", "values": ["p50", "p90", "p99"] },
+  "y": { "label": "首 token 延迟", "unit": "ms" },
+  "series": [
+    { "name": "vLLM", "values": [182, 340, 610] },
+    { "name": "SGLang", "values": [150, 290, 520] }
+  ],
+  "note": "示例数据，非实测。"
+}

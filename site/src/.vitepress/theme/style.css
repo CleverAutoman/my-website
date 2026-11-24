@@ -1,0 +1,222 @@
+/* 全站主题：首页与博客共用同一套配色与字体 */
+
+:root {
+  --vp-font-family-base: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  --vp-font-family-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* light */
+  --vp-c-brand-1: #b45309;
+  --vp-c-brand-2: #92400e;
+  --vp-c-brand-3: #b45309;
+  --vp-c-brand-soft: rgba(180, 83, 9, 0.12);
+
+  --vp-c-bg: #f7f9fb;
+  --vp-c-bg-alt: #eef2f6;
+  --vp-c-bg-elv: #ffffff;
+  --vp-c-bg-soft: #e9eef3;
+
+  --x-panel: #ffffff;
+  --x-panel-2: #f3f6f9;
+  --x-border: #dbe3ea;
+  --x-border-hover: #b9c6d2;
+  --x-grid: rgba(15, 23, 42, 0.06);
+  --x-shadow: rgba(15, 23, 42, 0.18);
+  --x-violet: #7c3aed;
+  --x-blue: #2563eb;
+  --x-err: #c62828;
+  --x-on-brand: #ffffff;
+}
+
+.dark {
+  --vp-c-brand-1: #f5a524;
+  --vp-c-brand-2: #ffbe55;
+  --vp-c-brand-3: #d48a0f;
+  --vp-c-brand-soft: rgba(245, 165, 36, 0.14);
+
+  --vp-c-bg: #0b0f14;
+  --vp-c-bg-alt: #080b0f;
+  --vp-c-bg-elv: #11161d;
+  --vp-c-bg-soft: #131a22;
+
+  --vp-c-divider: #1d252f;
+  --vp-c-border: #2a3440;
+  --vp-c-gutter: #080b0f;
+
+  --vp-code-block-bg: #0e131a;
+
+  --x-panel: #0f141b;
+  --x-panel-2: #121921;
+  --x-border: #1f2933;
+  --x-border-hover: #33414f;
+  --x-grid: rgba(148, 163, 184, 0.07);
+  --x-shadow: rgba(0, 0, 0, 0.7);
+  --x-violet: #a78bfa;
+  --x-blue: #60a5fa;
+  --x-err: #f87171;
+  --x-on-brand: #1c1203;
+}
+
+:root {
+  --vp-button-brand-bg: var(--vp-c-brand-1);
+  --vp-button-brand-hover-bg: var(--vp-c-brand-2);
+  --vp-button-brand-active-bg: var(--vp-c-brand-3);
+  --vp-button-brand-text: var(--x-on-brand);
+  --vp-button-brand-hover-text: var(--x-on-brand);
+  --vp-button-brand-active-text: var(--x-on-brand);
+}
+
+/* 页脚构建信息 */
+.VPFooter .build {
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+}
+.VPFooter .build a {
+  color: var(--vp-c-text-2);
+}
+
+/* 导航栏：站名用等宽字体 */
+.VPNavBarTitle .title {
+  font-family: var(--vp-font-family-mono);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+/* ---------- 文章页 ---------- */
+.vp-doc h1 {
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+.vp-doc h2 {
+  letter-spacing: -0.015em;
+}
+.vp-doc h2,
+.vp-doc h3 {
+  font-weight: 650;
+}
+/* 保持 VitePress 默认的 display:block + 横向滚动，窄屏下宽表格不会撑破页面 */
+.vp-doc table {
+  overflow-x: auto;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.vp-doc tr {
+  border-top: none;
+}
+.vp-doc th,
+.vp-doc td {
+  border: none;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+.vp-doc tr:last-child td {
+  border-bottom: none;
+}
+.vp-doc th {
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--vp-c-bg-soft);
+}
+.vp-doc tr:nth-child(2n) {
+  background: transparent;
+}
+.vp-doc :not(pre) > code {
+  font-size: 0.875em;
+}
+.vp-doc img {
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+/* 文章顶部的元信息行 */
+.vp-doc .post-eyebrow {
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  color: var(--vp-c-brand-1);
+  margin: 0 0 -8px;
+}
+.vp-doc .post-lede {
+  font-size: 17px;
+  color: var(--vp-c-text-2);
+}
+
+/* 读数卡片：文章里展示关键数据 */
+.vp-doc .readouts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1px;
+  margin: 20px 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--vp-c-divider);
+}
+.vp-doc .readouts > div {
+  background: var(--vp-c-bg-soft);
+  padding: 12px 16px;
+}
+.vp-doc .readouts b {
+  display: block;
+  font-family: var(--vp-font-family-mono);
+  font-size: 20px;
+  color: var(--vp-c-brand-1);
+}
+.vp-doc .readouts span {
+  font-size: 13px;
+  color: var(--vp-c-text-2);
+}
+
+/* ---------- 全站 decoding 效果（见 theme/decoder.ts） ---------- */
+/* 首屏 / 切换页面时，JS 接管前先藏起正文，避免闪一下 */
+html.decode-pending .VPContent {
+  visibility: hidden;
+}
+/* 光标之后还没「生成」的文字：透明，但仍占位，版面不跳 */
+::highlight(decode-pending) {
+  color: transparent;
+  text-decoration-color: transparent;
+  -webkit-text-fill-color: transparent;
+}
+/* 图片和装饰块（卡片、标签、代码块、表格等）：光标走到时淡入 */
+/* 只在出现时淡入；隐藏要瞬间完成，否则已经显示的框会先淡出一次再淡入 */
+.VPContent [data-decode='shown'] {
+  transition: opacity 0.3s ease-out, transform 0.3s ease-out !important;
+}
+.VPContent [data-decode='pending'] {
+  opacity: 0 !important;
+  transform: translateY(3px);
+  transition: none !important;
+}
+/* 列表符号（- / 1.）和伪元素里的文字：光标走到这一项时才出现 */
+.VPContent [data-decode-mark='pending']::marker,
+.VPContent [data-decode-mark='pending']::before,
+.VPContent [data-decode-mark='pending']::after {
+  color: transparent !important;
+  -webkit-text-fill-color: transparent;
+}
+.decode-caret {
+  position: fixed;
+  left: 0;
+  top: 0;
+  width: 8px;
+  height: 1em;
+  margin-left: 1px;
+  background: var(--vp-c-brand-1);
+  opacity: 0;
+  pointer-events: none;
+  z-index: 24;
+  border-radius: 1px;
+}
+@media print {
+  .decode-caret {
+    display: none;
+  }
+  ::highlight(decode-pending) {
+    color: inherit;
+  }
+}
