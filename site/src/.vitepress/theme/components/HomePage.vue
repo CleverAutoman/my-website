@@ -102,14 +102,6 @@ onBeforeUnmount(() => {
             experience from Meituan, systems foundations from OS kernels and database engines. Learning LLM inference
             in public.
           </p>
-          <div class="actions">
-            <a class="btn btn-primary" :href="to('/blog/ai-infra/')">
-              Read the AI Infra series <Icon name="arrow" :size="16" />
-            </a>
-            <a class="btn btn-ghost" :href="to(profile.resume)" target="_blank" rel="noreferrer noopener">
-              <Icon name="doc" :size="16" /> Resume
-            </a>
-          </div>
           <div class="socials">
             <a
               v-for="s in profile.socials"
@@ -532,12 +524,6 @@ onBeforeUnmount(() => {
   color: var(--vp-c-text-2);
   margin: 0 0 28px;
   max-width: 38em;
-}
-.actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 24px;
 }
 .btn {
   display: inline-flex;

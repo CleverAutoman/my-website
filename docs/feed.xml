@@ -5,7 +5,7 @@
     <link>https://cleverautoman.github.io/my-website/blog/</link>
     <atom:link href="https://cleverautoman.github.io/my-website/feed.xml" rel="self" type="application/rss+xml"/>
     <description>Software engineer building AI infrastructure: multi-agent orchestration, LLM evaluation, and the distributed systems underneath.</description>
-    <lastBuildDate>Tue, 24 Nov 2026 22:08:32 GMT</lastBuildDate>
+    <lastBuildDate>Tue, 24 Nov 2026 22:12:06 GMT</lastBuildDate>
     <item>
       <title>从零开始：在 8GB 显卡上搭环境、跑模型、做压测</title>
       <link>https://cleverautoman.github.io/my-website/blog/ai-infra/00-wsl2-sglang-env</link>
