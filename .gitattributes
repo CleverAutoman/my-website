@@ -1,0 +1,13 @@
+# 统一 LF 换行，避免 Windows / macOS 混用时出现整文件 diff
+* text=auto eol=lf
+
+# 二进制资源，不做换行转换和文本 diff
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.woff  binary
+*.woff2 binary

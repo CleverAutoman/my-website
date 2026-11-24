@@ -1,0 +1,50 @@
+#!/bin/sh
+# 拦截草稿：仓库是公开的，frontmatter 里 draft: true 的文章，以及它在
+# site/src/public/assets/blog/<文件名>/ 下的图片，都不能提交。
+# 编辑器的「发布」会自动把草稿移出暂存区，这个钩子主要防手动 git commit。
+# 确实要提交：git commit --no-verify
+#
+# 启用（每个 clone 一次）：git config core.hooksPath .githooks
+
+# stdin 是 markdown 内容；frontmatter 里有 draft: true 时返回 0
+is_draft() {
+  awk 'NR == 1 { sub(/\r$/, ""); if ($0 != "---") exit 1; next }
+       { sub(/\r$/, "") }
+       /^---[ \t]*$/ { exit 1 }
+       /^draft:[ \t]*true[ \t]*$/ { found = 1; exit 0 }
+       END { exit found ? 0 : 1 }'
+}
+
+staged=$(git -c core.quotePath=false diff --cached --name-only --diff-filter=ACMR)
+[ -z "$staged" ] && exit 0
+
+nl='
+'
+IFS=$nl
+bad=""
+
+# 1. 暂存区里的草稿文章（检查暂存的内容，不是工作区）
+for f in $staged; do
+  case "$f" in
+    site/src/*.md)
+      if git show ":$f" | is_draft; then bad="$bad$f$nl"; fi ;;
+  esac
+done
+
+# 2. 工作区里的草稿，它们的图片目录也不能提交
+for f in $(grep -rlE '^draft:[[:space:]]*true' site/src --include='*.md' 2>/dev/null); do
+  is_draft < "$f" || continue
+  dir="site/src/public/assets/blog/$(basename "$f" .md)/"
+  for s in $staged; do
+    case "$s" in "$dir"*) bad="$bad$s$nl" ;; esac
+  done
+done
+
+if [ -n "$bad" ]; then
+  echo "pre-commit: 下面这些属于草稿（draft: true），不能提交到公开仓库：" >&2
+  printf '%s' "$bad" | sed 's/^/  /' >&2
+  echo "改成正式文章（删掉 draft）后再提交，或 git reset -q -- <文件> 移出暂存区。" >&2
+  echo "确定要提交：git commit --no-verify" >&2
+  exit 1
+fi
+exit 0

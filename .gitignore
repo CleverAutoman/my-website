@@ -1,0 +1,19 @@
+# 依赖和缓存
+site/node_modules/
+site/src/.vitepress/cache/
+site/src/.vitepress/.temp/
+
+# 本地环境
+.env
+.env.*
+*.local
+
+# 系统和编辑器生成的文件
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+
+# 日志
+*.log
+npm-debug.log*
