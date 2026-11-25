@@ -6,7 +6,7 @@ date: 2026-11-24
 
 <script setup>
 // 实测数据放在同目录的 data/ 下，例如：
-// import throughput from './data/xx-throughput.json'
+// import throughput from './ai-infra/data/xx-throughput.json'
 </script>
 
 <p class="post-eyebrow">// ai infra · 第 0 篇</p>
