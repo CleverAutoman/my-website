@@ -5,11 +5,18 @@
     <link>https://cleverautoman.github.io/my-website/blog/</link>
     <atom:link href="https://cleverautoman.github.io/my-website/feed.xml" rel="self" type="application/rss+xml"/>
     <description>Software engineer building AI infrastructure: multi-agent orchestration, LLM evaluation, and the distributed systems underneath.</description>
-    <lastBuildDate>Tue, 24 Nov 2026 22:55:31 GMT</lastBuildDate>
+    <lastBuildDate>Wed, 25 Nov 2026 21:59:43 GMT</lastBuildDate>
+    <item>
+      <title>What is the size/speed of each I/O operation</title>
+      <link>https://cleverautoman.github.io/my-website/blog/ddia/00-storage-intuition</link>
+      <guid isPermaLink="true">https://cleverautoman.github.io/my-website/blog/ddia/00-storage-intuition</guid>
+      <pubDate>Tue, 24 Nov 2026 00:00:00 GMT</pubDate>
+      <description>从 L1 缓存测到机械盘，算出一台机器每一层存储的阈值，再用这些数决定数据放哪层、内存配多少、fsync 怎么摊，给 DDIA 里&quot;WAL 要 fsync&quot;&quot;LSM 把随机写变顺序写&quot;配上数量级</description>
+    </item>
     <item>
       <title>谈谈为啥突然想写博客</title>
-      <link>https://cleverautoman.github.io/my-website/blog/ai-infra/00-preface</link>
-      <guid isPermaLink="true">https://cleverautoman.github.io/my-website/blog/ai-infra/00-preface</guid>
+      <link>https://cleverautoman.github.io/my-website/blog/00-preface</link>
+      <guid isPermaLink="true">https://cleverautoman.github.io/my-website/blog/00-preface</guid>
       <pubDate>Tue, 24 Nov 2026 00:00:00 GMT</pubDate>
       <description>序</description>
     </item>
