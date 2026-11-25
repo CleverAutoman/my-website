@@ -3,6 +3,8 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { withBase } from 'vitepress'
 import MdEditor from './MdEditor.vue'
+import { renderDiagrams } from '../diagrams'
+import { BLOCK_KINDS, formatFence, type Block } from '../blocks/fence'
 
 interface PostMeta { file: string; title: string; date?: string; draft: boolean }
 interface Series { name: string; next: string }
@@ -188,6 +190,9 @@ async function renderLive() {
     liveTitle.value = d.frontmatter.title ?? ''
     liveDesc.value = d.frontmatter.description ?? ''
     liveErr.value = ''
+    // v-html 里的思维导图、流程图要在浏览器端画出来
+    await nextTick()
+    if (seq === renderSeq && liveEl.value) renderDiagrams(liveEl.value)
   } catch (e: any) {
     if (seq === renderSeq) liveErr.value = e.message
   }
@@ -197,6 +202,31 @@ watch([content, file, previewMode], () => {
   renderTimer = setTimeout(renderLive, liveHtml.value ? 200 : 0)
 })
 watch(previewMode, (v) => { try { localStorage.setItem(LS_MODE, v) } catch {} })
+
+/* ---------- 块（代码 / 流程图 / 思维导图）：在编辑区里原地编辑（MdEditor），这里只管开关和导图预览 ---------- */
+const LS_BLOCKS = 'editor:blocks'
+const blocksOn = ref(true)
+watch(blocksOn, (v) => { try { localStorage.setItem(LS_BLOCKS, v ? '1' : '0') } catch {} })
+
+
+/** 思维导图预览（块里、块编辑器里）：用 dev server 同一套 markdown 渲染，结果按源码缓存 */
+const mmCache = new Map<string, string>()
+async function renderMindmapInto(source: string, el: HTMLElement) {
+  let html = mmCache.get(source)
+  if (!html) {
+    const d = await api<{ html: string }>('render', { file: file.value, content: source + '\n' })
+    html = d.html
+    if (mmCache.size > 100) mmCache.clear()
+    mmCache.set(source, html)
+  }
+  el.innerHTML = html
+  await renderDiagrams(el)
+}
+function blockPreview(b: Block, el: HTMLElement) {
+  renderMindmapInto(formatFence({ ...b, meta: { ...b.meta, title: undefined } }), el).catch((e) => {
+    el.textContent = `预览失败：${e.message}`
+  })
+}
 
 /** 编辑区滚动时，按比例同步渲染区 */
 function onEditorScroll(ratio: number) {
@@ -405,6 +435,7 @@ function onBeforeUnload(ev: BeforeUnloadEvent) {
 onMounted(async () => {
   try { autoSave.value = localStorage.getItem(LS_AUTOSAVE) === '1' } catch {}
   try { if (localStorage.getItem(LS_MODE) === 'page') previewMode.value = 'page' } catch {}
+  try { blocksOn.value = localStorage.getItem(LS_BLOCKS) !== '0' } catch {}
   window.addEventListener('beforeunload', onBeforeUnload)
   try {
     await loadList()
@@ -428,11 +459,12 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
 <template>
   <div class="vp-raw editor" data-decode-skip>
     <header class="bar">
-      <select class="file" :value="file" @change="open(($event.target as HTMLSelectElement).value)">
+      <select class="file" :class="{ 'is-draft': file && isDraft }" :value="file"@change="open(($event.target as HTMLSelectElement).value)">
         <option v-if="!file" value="" disabled>选择文章…</option>
         <optgroup v-for="[dir, list] in groups" :key="dir" :label="dir + '/'">
-          <option v-for="p in list" :key="p.file" :value="p.file">
-            {{ p.file.split('/').pop() }} — {{ p.title }}{{ p.draft ? '（草稿）' : '' }}
+          <!-- 草稿标在最前面：标题长时下拉框会截断末尾 -->
+          <option v-for="p in list" :key="p.file" :value="p.file" :class="{ draft: p.draft }">
+            {{ p.draft ? '［草稿］ ' : '' }}{{ p.file.split('/').pop() }} — {{ p.title }}
           </option>
         </optgroup>
       </select>
@@ -479,11 +511,16 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
           @images="uploadImages"
           @scroll="onEditorScroll"
           @caret="backup"
+          :blocks="blocksOn"
+          :block-preview="blockPreview"
         />
         <footer class="foot">
           <span>{{ file || '—' }}</span>
           <span>{{ stats }}</span>
-          <span class="hint">Ctrl B 粗体 · Ctrl I 斜体 · Ctrl E 行内代码 · Ctrl F 查找 · 粘贴图片上传</span>
+          <button v-for="k in BLOCK_KINDS" :key="k.kind" class="link" :disabled="!file" :title="`在光标处插入${k.label}（也可以点段落左边的 ＋）`" @click="ed?.insertKind(k.kind)">＋ {{ k.label }}</button>
+          <button class="link" :disabled="!file" title="在光标处插入高亮块（::: tip），左边 ＋ 菜单里可以选提示 / 信息 / 注意 / 警告 / 折叠" @click="ed?.insertCallout('tip')">＋ 高亮块</button>
+          <label class="auto" title="关掉后代码块、流程图、导图显示成 markdown 源码"><input v-model="blocksOn" type="checkbox" /> 块视图</label>
+          <span class="hint">左侧 ＋ 插入块 · 块原地编辑，开头那行右边有复制 / 删除 · Ctrl B / I / E · Ctrl F · 粘贴图片上传</span>
         </footer>
       </section>
       <section class="pane preview">
@@ -650,6 +687,9 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', onBeforeUnload)
   font-family: var(--vp-font-family-mono);
   font-size: 13px;
 }
+.file option { color: var(--vp-c-text-1); background: var(--vp-c-bg); }
+.file option.draft { color: var(--vp-c-warning-1); }
+.file.is-draft { border-color: var(--vp-c-warning-1); color: var(--vp-c-warning-1); }
 .btn {
   padding: 5px 12px;
   border: 1px solid var(--x-border);

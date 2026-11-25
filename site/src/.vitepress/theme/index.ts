@@ -1,6 +1,7 @@
 import { defineAsyncComponent, h } from 'vue'
 import DefaultTheme from 'vitepress/theme'
-import type { Theme } from 'vitepress'
+import { onContentUpdated, type Theme } from 'vitepress'
+import { renderDiagrams } from './diagrams'
 import HomePage from './components/HomePage.vue'
 import BlogIndex from './components/BlogIndex.vue'
 import EnvCard from './components/EnvCard.vue'
@@ -21,6 +22,10 @@ export default {
       'not-found': () => h(NotFound),
       'doc-after': () => h(Comments)
     }),
+  setup() {
+    // 正文里的思维导图、流程图：每次页面内容渲染完画出来
+    onContentUpdated(() => renderDiagrams())
+  },
   enhanceApp({ app }) {
     if (typeof window !== 'undefined') markAppInit()
     app.component('HomePage', HomePage)

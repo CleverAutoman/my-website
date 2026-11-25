@@ -2,6 +2,7 @@ import { execSync } from 'node:child_process'
 import { defineConfig, type HeadConfig } from 'vitepress'
 import type { PageInfo } from './og'
 import { editorPlugin } from './editor'
+import { diagramsPlugin } from './diagrams'
 import { blogSidebar, draftFiles } from './posts'
 
 // GitHub Pages 从 main 分支的 /docs 发布，站点地址 https://cleverautoman.github.io/my-website/
@@ -71,7 +72,9 @@ export default defineConfig({
   ],
 
   markdown: {
-    lineNumbers: true
+    lineNumbers: true,
+    // ```mindmap 思维导图和 ```mermaid / ```flowchart 流程图（diagrams.ts），浏览器端由 theme/diagrams.ts 画图
+    config: (md) => diagramsPlugin(md, { base })
   },
 
   themeConfig: {
