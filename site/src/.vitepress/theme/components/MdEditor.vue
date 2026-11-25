@@ -22,6 +22,7 @@ const CALLOUT_COLORS: Record<string, { accent: string; bg: string }> = {
   caution: { accent: 'var(--vp-c-danger-1)', bg: 'var(--vp-custom-block-caution-bg)' }
 }
 import { emptyFlow, fromMermaid, parseFlow, stringifyFlow, type FlowData } from '../blocks/flow'
+import { livePreview, type LivePreviewOptions } from '../blocks/livePreview'
 import FlowEditor from './FlowEditor.vue'
 
 const props = defineProps<{
@@ -36,6 +37,12 @@ const props = defineProps<{
   blocks?: boolean
   /** 块里思维导图的预览（要调服务端渲染，由外面提供） */
   blockPreview?: (block: Block, el: HTMLElement) => void
+  /** 所见即所得：标记只在光标所在行显示，表格 / 组件 / HTML 直接显示渲染结果（blocks/livePreview.ts） */
+  live?: boolean
+  /** live 模式下把正文里的 Vue 组件画出来 */
+  mountComponent?: LivePreviewOptions['mount']
+  /** 嵌在文章页里：高度随内容、字号和间距按页面正文排（不再有自己的滚动条） */
+  inline?: boolean
 }>()
 const emit = defineEmits<{
   'update:modelValue': [string]
@@ -483,7 +490,8 @@ const plusHandle = ViewPlugin.fromClass(
       const top = this.v.documentTop + block.top - er.top + Math.min(block.height, 30) / 2 - 11
       if (top < -4 || top > er.height - 16) return this.hide()
       this.btn.style.top = `${top}px`
-      this.btn.style.left = `${c.left - er.left + 8}px`
+      // 嵌在文章页里时正文没有左边距，＋ 放到正文左边的空白里
+      this.btn.style.left = `${c.left - er.left + (props.inline ? -32 : 8)}px`
       this.btn.classList.add('show')
     }
     onLeave = (e: MouseEvent) => {
@@ -729,6 +737,45 @@ const theme = EditorView.theme({
   '.cm-md-img.broken': { display: 'none' }
 })
 
+/* ---------- 嵌在文章页里：排版跟 .vp-doc 正文一致 ---------- */
+// 标题字号交给整行的 lp-h* 类（行内 token 再按 em 放大会叠加）
+const pageHighlight = HighlightStyle.define([
+  { tag: [t.heading1, t.heading2, t.heading3, t.heading4, t.heading5, t.heading6], fontWeight: '600' },
+  ...highlight.specs.filter((s) => {
+    const tags = Array.isArray(s.tag) ? s.tag : [s.tag]
+    return !tags.some((x) => [t.heading1, t.heading2, t.heading3, t.heading4, t.heading5, t.heading6].includes(x))
+  })
+])
+// 行的上下间距只能用 padding（CodeMirror 量行高时不算 margin）
+const divider = (top: number) => ({
+  backgroundImage: 'linear-gradient(var(--vp-c-divider), var(--vp-c-divider))',
+  backgroundRepeat: 'no-repeat',
+  backgroundSize: '100% 1px',
+  backgroundPosition: `0 ${top}px`
+})
+const pageTheme = EditorView.theme({
+  '&': { height: 'auto', backgroundColor: 'transparent', fontSize: '16px' },
+  '.cm-scroller': { overflow: 'visible !important', lineHeight: '28px' },
+  // 宽度锁在正文栏里：图表、表格这些块级内容再宽也只在自己里面横向滚动，不撑宽整页
+  '.cm-content': { padding: '0 0 30vh', width: '100%', minWidth: '0', flexShrink: '1' },
+  '.cm-line': { padding: '0 !important', maxWidth: 'none' },
+  '.lp-block': { maxWidth: '100%', overflowX: 'auto' },
+  '.lp-h1': { fontSize: '32px', lineHeight: '40px', letterSpacing: '-0.02em', paddingBottom: '8px !important' },
+  '.lp-h2': { fontSize: '24px', lineHeight: '32px', letterSpacing: '-0.02em', paddingTop: '40px !important', ...divider(16) },
+  '.lp-h3': { fontSize: '20px', lineHeight: '28px', letterSpacing: '-0.01em', paddingTop: '20px !important' },
+  '.lp-h4': { fontSize: '18px', lineHeight: '24px', letterSpacing: '-0.01em', paddingTop: '16px !important' },
+  '.lp-h5, .lp-h6': { fontSize: '16px', paddingTop: '12px !important' },
+  '.cm-md-fm, .cm-md-code': { padding: '0 20px !important' },
+  '.cm-md-code.first, .cm-md-fm.first': { paddingTop: '10px !important' },
+  '.cm-md-code.last, .cm-md-fm.last': { paddingBottom: '10px !important' },
+  '.cm-md-quote': { paddingLeft: '16px !important', borderLeftWidth: '2px', borderLeftColor: 'var(--vp-c-divider)' },
+  '.cm-callout': { padding: '0 16px !important', fontSize: '14px', lineHeight: '24px', borderLeftWidth: '0', borderRadius: '0' },
+  '.cm-callout.head': { paddingTop: '12px !important', fontFamily: 'var(--vp-font-family-base)', fontSize: '14px', borderTopLeftRadius: '8px', borderTopRightRadius: '8px' },
+  '.cm-callout.tail': { paddingBottom: '12px !important', borderBottomLeftRadius: '8px', borderBottomRightRadius: '8px' },
+  '.cm-md-img': { padding: '4px 0 10px' },
+  '.cm-flow, .cm-mm-preview': { marginLeft: '0', marginRight: '0', maxWidth: 'none' }
+})
+
 function extensions(): Extension[] {
   return [
     history(),
@@ -739,11 +786,13 @@ function extensions(): Extension[] {
     EditorState.tabSize.of(2),
     cmPlaceholder(props.placeholder ?? ''),
     yamlFrontmatter({ content: markdown({ base: markdownLanguage, codeLanguages: languages }) }),
-    syntaxHighlighting(highlight),
+    syntaxHighlighting(props.inline ? pageHighlight : highlight),
     blockMode.of(props.blocks ? boxField : []),
     decorations,
+    props.live ? livePreview({ mount: props.mountComponent }) : [],
     plusHandle,
     theme,
+    props.inline ? pageTheme : [],
     editable.of([EditorView.editable.of(!props.disabled), EditorState.readOnly.of(!!props.disabled)]),
     keymap.of([
       { key: 'Mod-s', preventDefault: true, run: () => (emit('save'), true) },
@@ -881,6 +930,13 @@ defineExpose({
     return true
   },
   focus: () => view?.focus(),
+  /** 光标放到 pos，并把那一行滚到视口靠上的位置（嵌在页面里时滚的是整个页面） */
+  reveal(pos: number, yMargin = 120) {
+    if (!view) return
+    pos = Math.min(pos, view.state.doc.length)
+    view.dispatch({ selection: { anchor: pos }, effects: EditorView.scrollIntoView(pos, { y: 'start', yMargin }) })
+    view.focus()
+  },
   getCursor: () => ({ sel: view?.state.selection.main.head ?? 0, scroll: view?.scrollDOM.scrollTop ?? 0 }),
   setCursor(sel: number, scroll: number) {
     if (!view) return
@@ -891,7 +947,7 @@ defineExpose({
 </script>
 
 <template>
-  <div ref="host" class="md-editor" />
+  <div ref="host" class="md-editor" :class="{ inline }" />
 </template>
 
 <style scoped>
@@ -902,5 +958,11 @@ defineExpose({
 }
 .md-editor :deep(.cm-editor) {
   height: 100%;
+}
+.md-editor.inline {
+  overflow: visible;
+}
+.md-editor.inline :deep(.cm-editor) {
+  height: auto;
 }
 </style>
