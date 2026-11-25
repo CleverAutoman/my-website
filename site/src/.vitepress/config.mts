@@ -1,4 +1,5 @@
 import { execSync } from 'node:child_process'
+import { fileURLToPath } from 'node:url'
 import { defineConfig, type HeadConfig } from 'vitepress'
 import type { PageInfo } from './og'
 import { editorPlugin } from './editor'
@@ -42,7 +43,18 @@ export default defineConfig({
   srcExclude: isBuild ? ['_dev/**', ...draftFiles()] : [],
 
   // 本地写作接口（/my-website/_dev/editor），只在 dev 时生效
-  vite: { plugins: [editorPlugin()] },
+  vite: {
+    plugins: [editorPlugin()],
+    resolve: {
+      alias: [
+        // 右侧 On this page：换成带展开/收起三角的版本
+        {
+          find: /^.*\/VPDocOutlineItem\.vue$/,
+          replacement: fileURLToPath(new URL('./theme/components/OutlineItem.vue', import.meta.url))
+        }
+      ]
+    }
+  },
   lang: 'en-US',
   title: 'Chenguang Liu',
   titleTemplate: ':title · Chenguang Liu',
@@ -100,7 +112,8 @@ export default defineConfig({
       ]
     },
 
-    outline: { level: [2, 3] },
+    // 'deep' = h2–h6，右侧 On this page 显示所有标题层级
+    outline: { level: 'deep' },
 
     search: { provider: 'local' },
 

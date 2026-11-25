@@ -13,6 +13,9 @@ import Comments from './components/Comments.vue'
 import { markAppInit } from './trace'
 import './style.css'
 
+// 文章页的「编辑这篇」入口，和写作编辑器一样只在本地 dev 存在，build 时被摇掉
+const EditEntry = import.meta.env.DEV ? defineAsyncComponent(() => import('./components/EditEntry.vue')) : null
+
 export default {
   extends: DefaultTheme,
   Layout: () =>
@@ -20,6 +23,7 @@ export default {
       // 右下角 decoding 统计 / trace 面板，同时驱动全站 decoding 效果
       'layout-bottom': () => h(DecodeHud),
       'not-found': () => h(NotFound),
+      'doc-before': () => (EditEntry ? h(EditEntry) : null),
       'doc-after': () => h(Comments)
     }),
   setup() {

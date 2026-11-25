@@ -17,7 +17,8 @@ interface BenchData {
   title?: string
   kind?: 'line' | 'bar'
   x: { label: string; values: (string | number)[] }
-  y: { label: string; unit?: string }
+  // scale: 'log' 时纵轴按 10 的幂取刻度，适合跨好几个数量级的数据（比如 ns 到 ms 的延迟）
+  y: { label: string; unit?: string; scale?: 'linear' | 'log' }
   series: BenchSeries[]
   note?: string
 }
@@ -64,8 +65,22 @@ function niceStep(raw: number) {
 const allValues = computed(() =>
   series.value.flatMap((s) => s.values.filter((v): v is number => typeof v === 'number'))
 )
+const isLog = computed(() => props.data.y.scale === 'log')
+// 对数轴：上下界取到整 10 的幂
+const logRange = computed(() => {
+  const pos = allValues.value.filter((v) => v > 0)
+  if (!pos.length) return { lo: 0, hi: 1 }
+  const lo = Math.floor(Math.log10(Math.min(...pos)))
+  const hi = Math.max(lo + 1, Math.ceil(Math.log10(Math.max(...pos))))
+  return { lo, hi }
+})
 // 纵轴用全部系列的最大值，切换显示时刻度不跳
 const ticks = computed(() => {
+  if (isLog.value) {
+    const out: number[] = []
+    for (let k = logRange.value.lo; k <= logRange.value.hi; k++) out.push(+Math.pow(10, k).toPrecision(1))
+    return out
+  }
   const max = Math.max(...allValues.value, 0)
   if (max <= 0) return [0, 1]
   const step = niceStep(max / 4)
@@ -78,12 +93,19 @@ const yMax = computed(() => ticks.value[ticks.value.length - 1])
 
 const fmt = (v: number | null | undefined) =>
   v == null ? '—' : v.toLocaleString('en-US', { maximumFractionDigits: v < 10 ? 2 : 1 })
-const fmtTick = (v: number) =>
-  yMax.value >= 10000 ? `${(v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}K` : v.toLocaleString('en-US')
+const fmtTick = (v: number) => {
+  if (isLog.value) return v >= 1e6 ? `${v / 1e6}M` : v >= 1e3 ? `${v / 1e3}K` : String(v)
+  return yMax.value >= 10000 ? `${(v / 1000).toLocaleString('en-US', { maximumFractionDigits: 1 })}K` : v.toLocaleString('en-US')
+}
 
 /* ---------- 布局 ---------- */
 const endLabelW = 104
-const yAt = (v: number) => m.value.t + innerH.value - (v / yMax.value) * innerH.value
+function yFrac(v: number) {
+  if (!isLog.value) return v / (yMax.value || 1)
+  const { lo, hi } = logRange.value
+  return (Math.log10(Math.max(v, Math.pow(10, lo))) - lo) / (hi - lo)
+}
+const yAt = (v: number) => m.value.t + innerH.value - yFrac(v) * innerH.value
 const innerH = computed(() => H.value - 14 - 40)
 
 // 线图末端直接标注；末端点太挤时不硬挪位置，只保留图例
@@ -93,7 +115,7 @@ const endLabelsOk = computed(() => {
   const ys = visible.value
     .map((i) => series.value[i].values[last])
     .filter((v): v is number => typeof v === 'number')
-    .map((v) => (v / (yMax.value || 1)) * innerH.value)
+    .map((v) => yFrac(v) * innerH.value)
     .sort((a, b) => a - b)
   return ys.every((y, k) => k === 0 || y - ys[k - 1] >= 14)
 })
