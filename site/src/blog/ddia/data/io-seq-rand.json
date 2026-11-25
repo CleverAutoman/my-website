@@ -1,0 +1,48 @@
+{
+  "title": "顺序 vs 随机（4 KiB，绕过 page cache）",
+  "kind": "bar",
+  "x": {
+    "label": "访问模式",
+    "values": [
+      "顺序读",
+      "随机读",
+      "顺序写",
+      "随机写"
+    ]
+  },
+  "y": {
+    "label": "IOPS（对数轴，QD1）",
+    "unit": "IOPS",
+    "scale": "log"
+  },
+  "series": [
+    {
+      "name": "NVMe · NTFS",
+      "values": [
+        15123,
+        9063,
+        18424,
+        18695
+      ]
+    },
+    {
+      "name": "HDD · NTFS",
+      "values": [
+        3134,
+        55,
+        3586,
+        558
+      ]
+    },
+    {
+      "name": "WSL2 · ext4",
+      "values": [
+        7026,
+        5170,
+        1467,
+        1524
+      ]
+    }
+  ],
+  "note": "写入都带 O_DIRECT + O_DSYNC。2 GiB 测试文件，每项 5 秒。WSL2 为 C++ 版，NVMe / HDD 为 Windows 原生 Go 版。HDD 的两个写入数字被盘内写缓存吸收了，不代表真正落到盘片（见踩坑记录）。"
+}
